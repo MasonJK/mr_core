@@ -1,5 +1,6 @@
 import numpy as np
 import heapq
+from mr_msgs.msg import RobotPose
 from geometry_msgs.msg import PoseStamped
 from rclpy.time import Time
 
@@ -17,12 +18,14 @@ class GPP:
         self.log_func(f"Position {position} converted to grid {(j, i)}")
         return (j, i)  # Swap i and j to match the (row, col) order
 
-    def grid_to_position(self, grid):
+    def grid_to_robot_pose(self, grid):
         """Convert a grid cell (i, j) back to a position (x, y)"""
-        x = grid[1] * self.map_resolution + self.origin[0]
-        y = grid[0] * self.map_resolution + self.origin[1]
-        self.log_func(f"Grid {grid} converted to position {(x, y)}")
-        return (x, y)
+        pose = RobotPose()
+        pose.x = grid[1] * self.map_resolution + self.origin[0]
+        pose.y = grid[0] * self.map_resolution + self.origin[1]
+        self.log_func(f"Grid {grid} converted to position {(pose.x, pose.y)}")
+
+        return pose
 
     def heuristic(self, a, b):
         # Manhattan distance as heuristic
@@ -43,7 +46,7 @@ class GPP:
             self.log_func("No path found")
             return []
 
-        waypoints = [self.grid_to_position(cell) for cell in grid_path]
+        waypoints = [self.grid_to_robot_pose(cell) for cell in grid_path]
         return waypoints
 
     def a_star_algorithm(self, start, goal):
@@ -98,8 +101,8 @@ class GPP:
             pose = PoseStamped()
             pose.header.frame_id = frame_id
             pose.header.stamp = Time().to_msg()
-            pose.pose.position.x = point[0]
-            pose.pose.position.y = point[1]
+            pose.pose.position.x = point.x
+            pose.pose.position.y = point.y
             pose.pose.position.z = 0.0
             pose.pose.orientation.w = 1.0  # No rotation, facing forward
             pose_stamped_list.append(pose)

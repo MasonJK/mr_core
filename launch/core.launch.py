@@ -11,7 +11,7 @@ def generate_launch_description():
 
     namespace_arg = DeclareLaunchArgument(
         'namespace',
-        default_value='',
+        default_value='core',
         description='Namespace for the node'
     )
     use_sim_time_arg = DeclareLaunchArgument(

@@ -36,9 +36,11 @@ logger = logging.getLogger(__name__)
 
 # receive mission, and give back mission feedback and mission result
 class RobotAPI:
-    def __init__(self, port: int, iot_endpoint: str, root_ca_path: str, private_key_path: str, cert_path: str, single_goal_call_func):
+    def __init__(self, port: int, iot_endpoint: str, root_ca_path: str, private_key_path: str, cert_path: str,
+                 mission_goal_call_func, mission_cancel_func):
         self.connected = False
-        self.single_goal_call_func = single_goal_call_func
+        self.mission_goal_call_func = mission_goal_call_func
+        self.mission_cancel_func = mission_cancel_func
         client_id = "core"
 
         # MQTT Connection
@@ -74,7 +76,9 @@ class RobotAPI:
             exit(1)  # Exit the script with a non-zero status
 
         # Subscribe to topics
+        client.subscribe('core/multi_goal_mission', 1, self.on_multi_goal_mission_call)
         client.subscribe('core/single_goal_mission', 1, self.on_single_goal_mission_call)
+        client.subscribe('core/mission_cancel', 1, self.on_mission_cancel_call)
 
         return client
 
@@ -89,12 +93,45 @@ class RobotAPI:
         mission_id=json.loads(decoded_message)['payload']['mission_id']
         fleet_id=json.loads(decoded_message)['payload']['fleet_id']
         robot_id=json.loads(decoded_message)['payload']['robot_id']
+        goal_poses = []
         goal_pose = [float(json.loads(decoded_message)['payload']['goal_pose_x']),
                      float(json.loads(decoded_message)['payload']['goal_pose_y']),
                      float(json.loads(decoded_message)['payload']['goal_pose_theta'])]
         # call single goal mission
+        goal_poses.append(goal_pose)
         logger.info(f"RECEIVED MISSION OF {mission_id}")
-        self.single_goal_call_func(mission_id, fleet_id, robot_id, goal_pose)
+        self.mission_goal_call_func(mission_id, fleet_id, robot_id, goal_poses)
+
+
+    def on_multi_goal_mission_call(self, client, userdata, msg):
+        # Assuming pose will come with PoseStamped
+        decoded_message=str(msg.payload.decode("utf-8"))
+        mission_id=json.loads(decoded_message)['payload']['mission_id']
+        fleet_id=json.loads(decoded_message)['payload']['fleet_id']
+        robot_id=json.loads(decoded_message)['payload']['robot_id']
+        goal_poses = []
+        # Assuming goal_poses is a list of dictionaries with x, y, theta for each goal
+        goal_poses_msg = json.loads(decoded_message)['payload']['goal_poses']
+
+        # Iterating through each goal pose in the list
+        for goal_msg in goal_poses_msg:
+            goal = [float(goal_msg['goal_pose_x']),
+                    float(goal_msg['goal_pose_y']),
+                    float(goal_msg['goal_pose_theta'])]
+            goal_poses.append(goal)
+
+        # call single goal mission
+        logger.info(f"RECEIVED MISSION OF {mission_id}")
+        self.mission_goal_call_func(mission_id, fleet_id, robot_id, goal_poses)
+
+
+    def on_mission_cancel_call(self, client, userdata, msg):
+        decoded_message=str(msg.payload.decode("utf-8"))
+        mission_id=json.loads(decoded_message)['payload']['mission_id']
+        fleet_id=json.loads(decoded_message)['payload']['fleet_id']
+        robot_id=json.loads(decoded_message)['payload']['robot_id']
+        logger.warn(f"RECEIVED MISSION CANCEL OF {mission_id}")
+        self.mission_cancel_func(mission_id, fleet_id, robot_id)
 
 
     def publish_log(self, stamp: str, log_level: str, log_content: str):
